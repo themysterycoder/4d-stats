@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4D Number Stats</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#faf9f6;--card:#fff;--tx:#1d1d1b;--mu:#6b6a65;--bd:#e4e2da;--hot:#d9480f;--cold:#1c7ed6;--ac:#2b2b28}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--card:#201f1d;--tx:#eceae3;--mu:#9a988f;--bd:#37352f;--hot:#ff8a4c;--cold:#6cb2ff;--ac:#eceae3}}
+:root[data-theme="dark"]{--bg:#161615;--card:#201f1d;--tx:#eceae3;--mu:#9a988f;--bd:#37352f;--hot:#ff8a4c;--cold:#6cb2ff;--ac:#eceae3}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 Georgia,serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:2rem;margin:0 0 4px}h2{font-size:1.15rem;margin:0 0 10px}
+.sub,.note,.sans{color:var(--mu);font-family:system-ui,sans-serif;font-size:.85rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-top:16px}
+.row{display:flex;gap:16px;flex-wrap:wrap}.row>*{flex:1 1 300px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:ui-monospace,Menlo,monospace;font-weight:600;padding:4px 8px;border-radius:6px;border:2px solid;text-align:center;line-height:1.1}
+.chip small{display:block;font:400 .6rem system-ui,sans-serif;color:var(--mu)}
+.hot .chip{border-color:var(--hot);color:var(--hot)}.cold .chip{border-color:var(--cold);color:var(--cold)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-family:system-ui,sans-serif}
+.stat{border:1px solid var(--bd);border-radius:8px;padding:10px}.stat b{display:block;font-size:1.2rem}.stat span{font-size:.75rem;color:var(--mu)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-family:system-ui,sans-serif;font-size:.82rem}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}th:first-child,td:first-child{text-align:left}th{color:var(--mu)}
+.bars{display:flex;align-items:flex-end;gap:3px;height:130px}.col{flex:1;height:100%;position:relative;display:flex;align-items:flex-end}
+.bar{width:100%;background:var(--ac);opacity:.75;border-radius:2px 2px 0 0}.mk{position:absolute;left:-1px;right:-1px;height:2px;background:var(--hot)}
+.ax{display:flex;gap:3px;font:9px system-ui,sans-serif;color:var(--mu)}.ax span{flex:1;text-align:center}
+textarea,select,input,button{font:inherit;font-family:system-ui,sans-serif;font-size:.85rem;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:6px 8px}
+textarea{width:100%;height:70px}button{cursor:pointer}.ctl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px;font-family:system-ui,sans-serif;font-size:.85rem}
+.warn{border-left:4px solid var(--hot)}td input{width:70px;text-align:right}
+#q{font:600 1.4rem ui-monospace,monospace;width:130px;letter-spacing:.15em;text-align:center}
+</style></head><body><main>
+<h1>4D Number Stats</h1><div class="sub" id="meta"></div>
+<div class="card warn"><b class="sans" style="color:var(--tx)">Read this first</b>
+<p class="note" style="margin:6px 0 0">Every 4D draw is independent. A "hot" number is no more likely next draw, and a "cold" one isn't "due". The stats below describe history, and the uniformity tests show whether that history looks any different from pure chance. The prize tables show that each $1 bet returns well under $1 on average.</p></div>
+
+<div class="card"><h2>Data</h2>
+<textarea id="paste" placeholder="Paste CSV with a header row (needs columns: Date or Draw Date, Prize group, NUM)"></textarea>
+<div class="ctl"><button id="load">Analyze pasted CSV</button><input type="file" id="file" accept=".csv,.txt"><button id="demo">Demo data</button></div>
+<p class="note">Runs entirely in your browser. Currently showing <b id="src">demo data</b>.</p></div>
+
+<div class="card"><h2>Overview</h2><div class="stats" id="ov"></div></div>
+
+<div class="card"><div class="ctl" style="margin:0 0 10px"><h2 style="margin:0">Hot &amp; cold numbers</h2>
+<label>Hot counted over <select id="scope"><option value="0">all draws</option><option value="50">last 50 draws</option><option value="100" selected>last 100 draws</option><option value="250">last 250 draws</option></select></label></div>
+<div class="row"><div><b class="sans" style="color:var(--hot)">Hot: drawn most often</b><div class="chips hot" id="hot"></div></div>
+<div><b class="sans" style="color:var(--cold)">Cold: longest since last drawn</b><div class="chips cold" id="cold"></div></div></div>
+<p class="note" id="hcn"></p></div>
+
+<div class="card"><h2>Number lookup</h2>
+<input id="q" maxlength="4" placeholder="0000" inputmode="numeric"><div id="lk" style="margin-top:12px"></div></div>
+
+<div class="card"><h2>Digit analysis by position</h2>
+<p class="note" style="margin-top:0">Counts of each digit in each position across all 23 numbers per draw. Shading shows the z-score (orange above expected, blue below). p is a chi-square test for uniformity.</p>
+<div class="scroll"><table id="heat"></table></div>
+<h2 style="margin-top:20px">Digit sum (0–36): observed vs expected</h2>
+<div class="bars" id="sb"></div><div class="ax" id="sx"></div><p class="note">Red line = expected count under a fair draw.</p></div>
+
+<div class="card"><h2>Prize groups &amp; payouts</h2>
+<div class="scroll"><table id="pt"></table></div>
+<div class="stats" id="rtp" style="margin-top:12px"></div>
+<p class="note">Edit payouts if needed; everything recalculates. "Hit rate" = chance a given number wins that prize in one draw.</p></div>
+
+<div class="card"><h2>Historical best earners ($1 on the same number every draw)</h2>
+<div class="row"><div><b class="sans">Big</b><div class="scroll"><table id="tb"></table></div></div><div><b class="sans">Small</b><div class="scroll"><table id="ts"></table></div></div></div>
+<p class="note">Out of 10,000 numbers, some will always look profitable in hindsight. This is selection bias, not a strategy.</p></div>
+</main>
+<script>
+const $=id=>document.getElementById(id),f=(x,d=2)=>Number.isFinite(x)?x.toFixed(d):'–';
+const G=['First','Second','Third','Starter','Consolation'],CNT={First:1,Second:1,Third:1,Starter:10,Consolation:10};
+const P={First:[2000,3000],Second:[1000,2000],Third:[490,1000],Starter:[60,0],Consolation:[250,0]};
+let E=[],dates=[],by=new Map(),D=0;
+function lg(z){const c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,.1208650973866179e-2,-.5395239384953e-5];let y=z,t=z+5.5;t-=(z+.5)*Math.log(t);let s=1.000000000190015;for(const k of c)s+=k/++y;return -t+Math.log(2.5066282746310005*s/z)}
+function Q(a,x){if(x<=0)return 1;if(x<a+1){let ap=a,sum=1/a,del=sum;for(let i=0;i<500;i++){ap++;del*=x/ap;sum+=del;if(Math.abs(del)<Math.abs(sum)*1e-12)break}return 1-sum*Math.exp(-x+a*Math.log(x)-lg(a))}
+let b=x+1-a,c=1e300,d=1/b,h=d;for(let i=1;i<500;i++){const an=-i*(i-a);b+=2;d=an*d+b;if(Math.abs(d)<1e-300)d=1e-300;c=b+an/c;if(Math.abs(c)<1e-300)c=1e-300;d=1/d;const dl=d*c;h*=dl;if(Math.abs(dl-1)<1e-12)break}return Math.exp(-x+a*Math.log(x)-lg(a))*h}
+const dd=i=>dates[i],days=(a,b)=>Math.round((new Date(a)-new Date(b))/864e5);
+function iso(s){if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);const d=new Date(s);return isNaN(d)?null:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function csv(l){const o=[];let c='',q=false;for(const ch of l){if(ch=='"')q=!q;else if(ch==','&&!q){o.push(c);c=''}else c+=ch}o.push(c);return o.map(s=>s.trim())}
+function parse(t){const L=t.split(/\r?\n/).filter(x=>x.trim());if(L.length<2)return[];const h=csv(L[0]);
+ const iN=h.findIndex(x=>/^num/i.test(x)),iG=h.findIndex(x=>/prize/i.test(x));let iD=h.findIndex(x=>/^date$/i.test(x));if(iD<0)iD=h.findIndex(x=>/date/i.test(x));
+ if(iN<0||iG<0||iD<0){alert('Header must include Date (or Draw Date), Prize group and NUM columns.');return[]}
+ const o=[];for(const l of L.slice(1)){const r=csv(l),n=(r[iN]||'').replace(/\D/g,'').padStart(4,'0'),g=G.find(x=>(r[iG]||'').toLowerCase().startsWith(x.slice(0,4).toLowerCase())),d=iso(r[iD]||'');if(n.length===4&&g&&d)o.push({d,n,g})}return o}
+function demo(){const o=[];let t=new Date('2026-10-07');for(let i=0;i<450;i++){const d=iso(t.toISOString().slice(0,10)),s=new Set();while(s.size<23)s.add(String(Math.floor(Math.random()*1e4)).padStart(4,'0'));[...s].forEach((n,j)=>o.push({d,n,g:j==0?'First':j==1?'Second':j==2?'Third':j<13?'Starter':'Consolation'}));t=new Date(t-(i%2?4:3)*864e5)}return o}
+function load(rows,src){if(!rows.length)return;E=rows;dates=[...new Set(rows.map(r=>r.d))].sort().reverse();D=dates.length;const ix={};dates.forEach((d,i)=>ix[d]=i);
+ by=new Map();E.forEach(r=>{r.i=ix[r.d];if(!by.has(r.n))by.set(r.n,[]);by.get(r.n).push(r)});$('src').textContent=src;render()}
+function chip(n,s){return`<div class="chip">${n}<small>${s}</small></div>`}
+function render(){const tot=E.length,last=dates[0];
+ $('meta').textContent=`${D} draws · ${dates[D-1]} to ${last} · ${tot.toLocaleString()} numbers`;
+ const never=10000-by.size;
+ $('ov').innerHTML=[[D,'Draws'],[f(tot/D,1),'Numbers per draw (expect 23)'],[by.size.toLocaleString(),'Distinct numbers drawn'],[never.toLocaleString(),'Numbers never drawn'],[f(D*23/1e4,2),'Expected hits per number']].map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+ hc();heat();sums();pay();lookup()}
+function hc(){const W=+$('scope').value||D,c=new Map();E.forEach(r=>{if(r.i<W)c.set(r.n,(c.get(r.n)||0)+1)});
+ const h=[...c].sort((a,b)=>b[1]-a[1]||(by.get(a[0])[0].i-by.get(b[0])[0].i)).slice(0,20);
+ $('hot').innerHTML=h.map(([n,k])=>chip(n,k+'×')).join('');
+ const cold=[...by].map(([n,a])=>[n,Math.min(...a.map(r=>r.i)),a]).sort((a,b)=>b[1]-a[1]).slice(0,20);
+ $('cold').innerHTML=cold.map(([n,i])=>chip(n,days(dates[0],dates[i])+'d')).join('');
+ $('hcn').textContent=`Cold chips show days since last drawn (among numbers drawn at least once). ${(10000-by.size).toLocaleString()} numbers have never been drawn in this data.`}
+function heat(){const C=[0,1,2,3].map(()=>Array(10).fill(0));E.forEach(r=>{for(let p=0;p<4;p++)C[p][+r.n[p]]++});const e=E.length/10,sd=Math.sqrt(E.length*.1*.9);
+ let h='<tr><th>Position</th>'+[...Array(10).keys()].map(d=>`<th>${d}</th>`).join('')+'<th>p</th></tr>';
+ C.forEach((row,p)=>{const chi=row.reduce((s,c)=>s+(c-e)**2/e,0);h+=`<tr><td>Digit ${p+1}</td>`+row.map(c=>{const z=(c-e)/sd,a=Math.min(Math.abs(z)/4,1)*.55;return`<td style="background:${z>0?`rgba(217,72,15,${a})`:`rgba(28,126,214,${a})`}" title="z=${f(z)}">${c}<br><small>${z>0?'+':''}${f(z,1)}</small></td>`}).join('')+`<td>${f(Q(4.5,chi/2),3)}</td></tr>`});$('heat').innerHTML=h}
+function sums(){const o=Array(37).fill(0);E.forEach(r=>o[[...r.n].reduce((s,x)=>s+ +x,0)]++);let d=[1];for(let k=0;k<4;k++){const n=Array(d.length+9).fill(0);d.forEach((v,i)=>{for(let j=0;j<10;j++)n[i+j]+=v});d=n}
+ const ex=d.map(v=>v/1e4*E.length),m=Math.max(...o,...ex);
+ $('sb').innerHTML=o.map((v,i)=>`<div class="col" title="Sum ${i}: ${v} (exp ${f(ex[i],0)})"><div class="bar" style="height:${v/m*100}%"></div><div class="mk" style="bottom:${ex[i]/m*100}%"></div></div>`).join('');
+ $('sx').innerHTML=o.map((_,i)=>`<span>${i%2?'':i}</span>`).join('')}
+function pay(){if(!$('pt').dataset.ok){$('pt').dataset.ok=1;$('pt').innerHTML='<tr><th>Prize</th><th>Numbers / draw</th><th>Big $/1</th><th>Small $/1</th><th>Hit rate</th><th>Times drawn</th></tr>'+G.map(g=>`<tr><td>${g}</td><td>${CNT[g]}</td><td><input data-g="${g}" data-t="0" type="number" value="${P[g][0]}"></td><td><input data-g="${g}" data-t="1" type="number" value="${P[g][1]}"></td><td>${CNT[g]/100}%</td><td id="dr${g}"></td></tr>`).join('');
+  document.querySelectorAll('td input[data-g]').forEach(i=>i.onchange=()=>{P[i.dataset.g][+i.dataset.t]=+i.value||0;pay();lookup()})}
+ G.forEach(g=>$('dr'+g).textContent=E.filter(r=>r.g===g).length.toLocaleString());
+ const rb=G.reduce((s,g)=>s+CNT[g]*P[g][0],0)/1e4,rs=G.reduce((s,g)=>s+CNT[g]*P[g][1],0)/1e4;
+ $('rtp').innerHTML=[[`$${f(rb)}`,'Expected return per $1 (Big)'],[`$${f(rs)}`,'Expected return per $1 (Small)'],[`${f((1-rb)*100,1)}%`,'House edge (Big)'],[`${f((1-rs)*100,1)}%`,'House edge (Small)']].map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+ const rows=[...by].map(([n,a])=>({n,k:a.length,b:a.reduce((s,r)=>s+P[r.g][0],0),s:a.reduce((s,r)=>s+P[r.g][1],0)}));
+ const tb=(k)=>'<tr><th>Number</th><th>Hits</th><th>Won</th><th>Net / draw</th></tr>'+[...rows].sort((a,b)=>b[k]-a[k]).slice(0,10).map(r=>`<tr><td><b>${r.n}</b></td><td>${r.k}</td><td>$${r[k].toLocaleString()}</td><td>${r[k]-D>=0?'+':''}$${f((r[k]-D)/D)}</td></tr>`).join('');
+ $('tb').innerHTML=tb('b');$('ts').innerHTML=tb('s')}
+function lookup(){const q=$('q').value.padStart(4,'0');if($('q').value.length<1){$('lk').innerHTML='<span class="note">Enter a 4-digit number to see its history.</span>';return}
+ const a=by.get(q)||[],k=a.length,exp=D*23/1e4,li=k?Math.min(...a.map(r=>r.i)):null;
+ const idx=a.map(r=>r.i).sort((x,y)=>x-y),gaps=idx.slice(1).map((v,i)=>v-idx[i]);
+ const bw=a.reduce((s,r)=>s+P[r.g][0],0),sw=a.reduce((s,r)=>s+P[r.g][1],0);
+ const cat=G.map(g=>`${g}: ${a.filter(r=>r.g===g).length}`).join(' · ');
+ $('lk').innerHTML=`<div class="stats">${[[q,'Number'],[k+'×','Times drawn (exp '+f(exp,1)+')'],[k?dates[li]:'Never','Last drawn'],[k?days(dates[0],dates[li])+' days / '+li+' draws':'–','Since last drawn'],[k?f(D/k,0)+' draws':'–','Average gap'],[gaps.length?Math.max(...gaps)+' draws':'–','Longest gap'],[`$${bw.toLocaleString()} / $${D}`,'$1 Big every draw: won / staked'],[`$${sw.toLocaleString()} / $${D}`,'$1 Small every draw: won / staked']].map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div><p class="note">${cat}${k?'<br>Recent hits: '+[...a].sort((x,y)=>x.i-y.i).slice(0,8).map(r=>`${r.d} (${r.g})`).join(', '):''}</p>`}
+$('q').oninput=e=>{e.target.value=e.target.value.replace(/\D/g,'');lookup()};
+$('scope').onchange=hc;
+$('load').onclick=()=>load(parse($('paste').value),'pasted CSV');
+$('file').onchange=e=>{const r=new FileReader();r.onload=()=>load(parse(r.result),e.target.files[0].name);r.readAsText(e.target.files[0])};
+$('demo').onclick=()=>load(demo(),'demo data');
+fetch('data.csv',{cache:'no-cache'}).then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>{const p=parse(t);if(!p.length)throw 0;load(p,'data.csv')}).catch(()=>load(demo(),'demo data'));
+</script></body></html>
